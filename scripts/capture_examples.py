@@ -2,8 +2,7 @@
 
     python scripts/capture_examples.py            # print the transcript
     python scripts/capture_examples.py --write    # also save it to examples/curl_examples.md
-    python scripts/capture_examples.py --serve    # then keep the server up (for /docs screenshots)
-    python scripts/capture_examples.py --serve --port 8000    # the same, on a port you choose
+    python scripts/capture_examples.py --serve --port 8000    # then keep the server up, to try the web app
 
 What it does:
 
@@ -216,7 +215,7 @@ def start_server(workdir: Path, port: int) -> subprocess.Popen:
 # --- the examples ------------------------------------------------------------
 
 
-def run_examples(api: Api, today: date) -> None:
+def run_examples(api: Api, today: date, *, keep_for_viewing: bool = False) -> None:
     this_month = today.strftime("%Y-%m")
     month_start = today.replace(day=1).isoformat()
 
@@ -380,6 +379,21 @@ def run_examples(api: Api, today: date) -> None:
 
     api.show("Delete an expense", "DELETE", f"/expenses/{created['id']}", token=token)
 
+    if keep_for_viewing:
+        # Put the deleted expense back, so the data left running for the web
+        # app and /docs has an over-budget category to show.
+        api.quiet(
+            "POST", "/expenses",
+            token=token,
+            json_body={
+                "amount": "650.00",
+                "category_id": category_ids[first["category"]],
+                "date": first["date"],
+                "note": "Cab to the airport (with toll)",
+                "payment_method": first["payment_method"],
+            },
+        )
+
 
 def transcript(api: Api, today: date) -> str:
     versions = subprocess.run(
@@ -420,7 +434,7 @@ def main() -> None:
         server = start_server(Path(workdir), port)
         try:
             api = Api(f"http://127.0.0.1:{port}")
-            run_examples(api, today)
+            run_examples(api, today, keep_for_viewing=arguments.serve)
             text = transcript(api, today)
             if arguments.write:
                 OUTPUT.parent.mkdir(exist_ok=True)
@@ -430,7 +444,8 @@ def main() -> None:
                 sys.stdout.reconfigure(encoding="utf-8")
                 print(text)
             if arguments.serve:
-                print(f"serving the demo data on http://127.0.0.1:{port} (docs: /docs). Ctrl+C to stop.", flush=True)
+                print(f"serving the demo data on http://127.0.0.1:{port} (API docs: /docs). Ctrl+C to stop.", flush=True)
+                print(f"log in to the web app with {DEMO_EMAIL} / {DEMO_PASSWORD}", flush=True)
                 try:
                     server.wait()
                 except KeyboardInterrupt:
