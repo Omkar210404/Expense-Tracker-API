@@ -3,6 +3,7 @@
     python scripts/capture_examples.py            # print the transcript
     python scripts/capture_examples.py --write    # also save it to examples/curl_examples.md
     python scripts/capture_examples.py --serve    # then keep the server up (for /docs screenshots)
+    python scripts/capture_examples.py --serve --port 8000    # the same, on a port you choose
 
 What it does:
 
@@ -410,10 +411,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--write", action="store_true", help=f"save the transcript to {OUTPUT.relative_to(ROOT)}")
     parser.add_argument("--serve", action="store_true", help="keep the server running afterwards, until Ctrl+C")
+    parser.add_argument("--port", type=int, default=None, help="port to run on (default: any free port)")
     arguments = parser.parse_args()
 
     today = datetime.now(timezone.utc).date()
-    port = free_port()
+    port = arguments.port or free_port()
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as workdir:
         server = start_server(Path(workdir), port)
         try:
