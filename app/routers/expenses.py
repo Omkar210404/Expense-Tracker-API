@@ -12,6 +12,7 @@ from app.repositories.expenses import ExpenseFilters
 from app.schemas.common import MAX_AMOUNT, MAX_ID, ResourceId, error_responses
 from app.schemas.expense import ExpenseCreate, ExpenseOut, ExpensePage, ExpenseUpdate
 from app.services import expenses as expense_service
+from app.services import export as export_service
 
 router = APIRouter(prefix="/expenses", tags=["expenses"], responses=error_responses(401))
 
@@ -80,6 +81,25 @@ def list_expenses(
         page=page,
         page_size=page_size,
         pages=math.ceil(total / page_size),
+    )
+
+
+# Declared before /{expense_id}, so "export" is not read as an id.
+@router.get(
+    "/export",
+    response_class=Response,
+    summary="Download expenses as CSV",
+    responses={
+        200: {"content": {"text/csv": {"schema": {"type": "string"}}}, "description": "A CSV file"},
+        **error_responses(422),
+    },
+)
+def export_expenses(db: DbSession, user: CurrentUser, filters: Filters):
+    """Takes the same filters as the list. Returns every match, oldest first, with no pagination."""
+    return Response(
+        content=export_service.expenses_csv(db, user.id, filters),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="expenses.csv"'},
     )
 
 
