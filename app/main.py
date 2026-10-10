@@ -1,11 +1,13 @@
 """Application factory. Run with `uvicorn app.main:app`."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect
 
 from app import __version__
@@ -19,7 +21,15 @@ Personal expense tracking with user accounts.
 
 Register, log in, then use the **Authorize** button with your email and password.
 Every user sees and changes only their own data.
+
+The web app that uses this API is at [/](/).
 """
+
+STATIC_DIR = Path(__file__).parent / "static"
+
+# The web app loads its script and styles from this server only and has no
+# inline script, so injected markup has nothing to run.
+WEB_APP_CSP = "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 
 @asynccontextmanager
@@ -61,6 +71,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Swagger UI ships a dark theme. This class on <html> switches it on.
         html = page.body.decode("utf-8").replace("<html>", '<html class="dark-mode">', 1)
         return HTMLResponse(html)
+
+    @app.get("/", include_in_schema=False)
+    def web_app() -> FileResponse:
+        """The web app: one HTML page that calls this API from the browser."""
+        return FileResponse(
+            STATIC_DIR / "index.html",
+            headers={"Content-Security-Policy": WEB_APP_CSP, "Cache-Control": "no-cache"},
+        )
+
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     register_error_handlers(app)
     app.include_router(health.router)

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expense Tracker</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <!-- Shown until the user is logged in -->
+  <main id="auth-view" class="auth" hidden>
+    <div class="auth-card">
+      <h1>Expense Tracker</h1>
+      <p class="muted">Track what you spend and stay inside your budget.</p>
+
+      <div class="segmented" role="tablist">
+        <button type="button" id="auth-tab-login" role="tab" aria-selected="true">Log in</button>
+        <button type="button" id="auth-tab-register" role="tab" aria-selected="false">Create account</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <label>Email
+          <input type="email" id="auth-email" autocomplete="username" required>
+        </label>
+        <label>Password
+          <input type="password" id="auth-password" autocomplete="current-password" required>
+        </label>
+        <p class="hint" id="auth-hint" hidden>At least 8 characters.</p>
+        <p class="form-error" id="auth-error" role="alert" hidden></p>
+        <button type="submit" class="primary wide" id="auth-submit">Log in</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- The app -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">Expense Tracker</div>
+
+        <nav class="tabs" aria-label="Sections">
+          <button type="button" data-tab="overview" class="active">Overview</button>
+          <button type="button" data-tab="expenses">Expenses</button>
+          <button type="button" data-tab="budgets">Budgets</button>
+          <button type="button" data-tab="categories">Categories</button>
+        </nav>
+
+        <div class="account">
+          <span id="user-email" class="muted"></span>
+          <button type="button" id="logout" class="ghost">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- Month picker, shared by Overview and Budgets -->
+      <div class="monthbar" id="monthbar">
+        <div class="month-nav" id="month-nav">
+          <button type="button" id="month-prev" class="icon" aria-label="Previous month">&#8249;</button>
+          <h2 id="month-label"></h2>
+          <button type="button" id="month-next" class="icon" aria-label="Next month">&#8250;</button>
+          <button type="button" id="month-today" class="ghost small">This month</button>
+        </div>
+        <h2 id="section-title" hidden></h2>
+        <span class="spacer"></span>
+        <button type="button" id="add-expense" class="primary">+ Add expense</button>
+      </div>
+
+      <!-- OVERVIEW -->
+      <section id="tab-overview" class="tab">
+        <div class="tiles">
+          <div class="tile hero">
+            <div class="tile-label" id="tile-spent-label">Spent</div>
+            <div class="tile-value" id="tile-spent">0.00</div>
+            <div class="tile-sub" id="tile-spent-sub"></div>
+          </div>
+          <div class="tile">
+            <div class="tile-label" id="tile-left-label">Budget left</div>
+            <div class="tile-value" id="tile-left">0.00</div>
+            <div class="tile-sub" id="tile-left-sub"></div>
+          </div>
+          <div class="tile">
+            <div class="tile-label" id="tile-delta-label">Compared with last month</div>
+            <div class="tile-value" id="tile-delta">0.00</div>
+            <div class="tile-sub" id="tile-delta-sub"></div>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <div class="card">
+            <div class="card-head">
+              <h3>Budgets</h3>
+              <button type="button" class="link" data-goto="budgets">Edit budgets</button>
+            </div>
+            <div id="overview-budgets"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Where the money went</h3></div>
+            <div id="overview-categories"></div>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <div class="card">
+            <div class="card-head"><h3>Last 6 months</h3></div>
+            <div id="overview-trend"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h3>Latest expenses</h3>
+              <button type="button" class="link" data-goto="expenses">See all</button>
+            </div>
+            <div id="overview-recent"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXPENSES -->
+      <section id="tab-expenses" class="tab" hidden>
+        <div class="card">
+          <form id="filters" class="filters">
+            <label>Search
+              <input type="search" id="f-q" placeholder="Text in the note">
+            </label>
+            <label>Category
+              <select id="f-category"></select>
+            </label>
+            <label>Paid with
+              <select id="f-method"></select>
+            </label>
+            <label>From
+              <input type="date" id="f-from">
+            </label>
+            <label>To
+              <input type="date" id="f-to">
+            </label>
+            <div class="filter-actions">
+              <button type="button" id="f-clear" class="ghost">Clear</button>
+              <button type="button" id="export-csv" class="ghost">Download CSV</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table class="table" id="expense-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Note</th>
+                  <th>Category</th>
+                  <th>Paid with</th>
+                  <th class="num">Amount</th>
+                  <th><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody id="expense-rows"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="expense-empty" hidden>No expenses match.</div>
+
+          <div class="pager">
+            <span id="pager-info" class="muted"></span>
+            <span class="spacer"></span>
+            <button type="button" id="pager-prev" class="ghost">Previous</button>
+            <button type="button" id="pager-next" class="ghost">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- BUDGETS -->
+      <section id="tab-budgets" class="tab" hidden>
+        <div class="card">
+          <div class="card-head">
+            <h3 id="budgets-title">Budgets</h3>
+            <span class="muted" id="budgets-total"></span>
+          </div>
+          <p class="muted">Set an amount for a category to track it this month. Clear the amount to remove the budget.</p>
+          <div id="budget-rows"></div>
+        </div>
+      </section>
+
+      <!-- CATEGORIES -->
+      <section id="tab-categories" class="tab" hidden>
+        <div class="card narrow">
+          <div class="card-head"><h3>Categories</h3></div>
+          <form id="category-form" class="inline-form">
+            <label class="grow"><span class="sr-only">New category name</span>
+              <input type="text" id="category-name" placeholder="New category" maxlength="50" required>
+            </label>
+            <button type="submit" class="primary">Add</button>
+          </form>
+          <div id="category-rows"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Add / edit expense -->
+  <dialog id="expense-dialog">
+    <form id="expense-form" novalidate>
+      <h3 id="expense-dialog-title">Add expense</h3>
+      <label>Amount
+        <input type="text" id="e-amount" inputmode="decimal" placeholder="0.00" autocomplete="off" required>
+      </label>
+      <div class="row">
+        <label>Category
+          <select id="e-category" required></select>
+        </label>
+        <label>Date
+          <input type="date" id="e-date" required>
+        </label>
+      </div>
+      <label>Paid with
+        <select id="e-method" required></select>
+      </label>
+      <label><span>Note <span class="muted">(optional)</span></span>
+        <input type="text" id="e-note" maxlength="500" placeholder="What was it for?">
+      </label>
+      <p class="form-error" id="expense-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="expense-cancel">Cancel</button>
+        <button type="submit" class="primary" id="expense-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="tooltip" class="tooltip" hidden></div>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
