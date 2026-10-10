@@ -171,6 +171,7 @@ Environment variables:
 | `JWT_SECRET` | yes | none | signing key, at least 32 characters |
 | `DATABASE_URL` | no | `sqlite:///./expenses.db` | SQLAlchemy URL |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | no | `30` | token lifetime |
+| `BCRYPT_ROUNDS` | no | `12` | bcrypt cost factor, 4 to 16; lowered only in tests |
 | `CORS_ORIGINS` | no | empty (CORS off) | comma-separated allowed origins |
 
 ## 6. File layout
