@@ -10,6 +10,7 @@ os.environ.setdefault("JWT_SECRET", secrets.token_urlsafe(48))
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import event  # noqa: E402
 
 from app.config import Settings  # noqa: E402
 from app.database import Base  # noqa: E402
@@ -35,6 +36,15 @@ def settings(tmp_path) -> Settings:
 @pytest.fixture
 def app(settings):
     app = create_app(settings)
+
+    @event.listens_for(app.state.engine, "connect")
+    def skip_disk_sync(dbapi_connection, connection_record):
+        # The file is thrown away after the test, so waiting for the disk on
+        # every commit only makes the suite slow.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA synchronous=OFF")
+        cursor.close()
+
     Base.metadata.create_all(app.state.engine)
     app.dependency_overrides[get_today] = lambda: TODAY
     yield app
