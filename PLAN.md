@@ -120,7 +120,7 @@ Defaults copied to each new user: Food, Transport, Housing, Utilities, Health, E
 |--------|------|-------|
 | `id` | Integer PK | |
 | `user_id` | FK → users, ON DELETE CASCADE | |
-| `category_id` | FK → categories, ON DELETE RESTRICT | must be the user's own category |
+| `category_id` | FK → categories, no ON DELETE action | must be the user's own category; a category in use cannot be deleted (see section 14) |
 | `amount_minor` | Integer, CHECK > 0 | amount × 100 |
 | `date` | Date | |
 | `note` | String(500), nullable | |
@@ -302,7 +302,28 @@ Small, one concern each, existing git identity, no `Co-Authored-By` or session l
 5. **Docker is verified by CI only**, because it cannot run on this machine.
 6. **Paths are flat** (`/expenses`), with no `/api/v1` prefix.
 
-## 14. Deviations from brain.md
+## 14. Changes made while building
+
+Small points decided during the build, all inside the approved plan:
+
+- **`/docs` uses Swagger UI's built-in dark theme.** The page is served by a small route in `app/main.py` that adds one class to the page FastAPI generates.
+- **`BCRYPT_ROUNDS`** was added as a setting (default 12) so the tests can use the minimum cost and stay fast.
+- **The expense-to-category foreign key has no `ON DELETE` action** instead of `RESTRICT`. A category in use still cannot be deleted, but `RESTRICT` also blocked the cascade when a user row is deleted.
+- **Category names are compared through a case-folded `name_key` column** with the unique constraint on it, so the rule holds for non-ASCII names and is enforced by the database, not only by the service.
+- **An unknown or foreign `category_id` in an expense or budget body is a 422** on `body.category_id`, the same answer in both cases. Ids in the URL give 404.
+- **Ids are limited to 1 to 2,147,483,647**, so an absurd number in a URL is a 422 and never reaches the database driver.
+- **`/budgets/status` also returns `unbudgeted_spent` and `total_spent`**, and `/summary/monthly` and `/summary/trends` return an overall `total`.
+- **`expires_in`** (seconds) is included in the login response.
+- **Extra test modules**: `test_security.py`, `test_database.py`, `test_months.py`, `test_docs.py`. The no-token check in `test_access_control.py` reads the route list from the app's own OpenAPI schema, so a route added later is covered automatically.
+- **Error examples on `/docs` are per status code**, and a test checks that every 4xx response in the OpenAPI schema is this API's error body and not FastAPI's default one.
+- **The capture script places sample dates relative to the day it runs** (this month and the two before), so it can be run again later without hitting the future-date rule.
+- **`httpx` stays at 0.28.1.** Starlette 1.7 prints a deprecation warning that it now prefers a package called `httpx2`. Switching was not done in this build; the suite passes with `httpx`. Listed in the README limitations.
+- **The second screenshot is cropped** from a full-page capture to the one expanded endpoint. Stated in the README.
+- **passlib was not installed or tried.** Decision 1 chose `bcrypt` directly, so the reported incompatibility was never checked here.
+
+Results of the final local run: 396 tests passed, both in the working environment and in a fresh virtual environment built from `requirements-dev.txt`.
+
+## 15. Deviations from brain.md
 
 - Rule 7 (every README command run and confirmed) cannot be met for the Docker commands on this machine. See risk 1.
 - This project is outside the three listed in `brain.md`. `brain.md`, `prompts/` and the other project folders are not touched and stay outside this repo.

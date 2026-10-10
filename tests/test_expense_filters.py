@@ -129,6 +129,18 @@ def test_search_treats_percent_and_underscore_as_plain_text(client, alice, ids):
     assert listed(client, alice, ids, q="python_book") == ["books"]
 
 
+def test_search_ignores_case_only_for_ascii_letters(client, alice):
+    """A known limit of SQLite, listed in the README. This test records it."""
+    add_expense(client, alice, note="Café Mocha")
+
+    def total(q):
+        return client.get("/expenses", params={"q": q}, headers=alice).json()["total"]
+
+    assert total("café") == 1
+    assert total("CAFé") == 1  # the ASCII letters may differ in case
+    assert total("CAFÉ") == 0  # the accented letter may not
+
+
 def test_search_with_no_match(client, alice, ids):
     assert listed(client, alice, ids, q="zzz") == []
 
