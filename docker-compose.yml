@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Required. Compose stops with this message if it is not set in the
+      # environment or in a .env file next to this file.
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the environment or in .env. See .env.example}
+      DATABASE_URL: sqlite:////data/expenses.db
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      # The SQLite file lives in a named volume, so it survives a rebuild.
+      - expense-data:/data
+    restart: unless-stopped
+
+volumes:
+  expense-data:

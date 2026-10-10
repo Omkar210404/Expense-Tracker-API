@@ -1,0 +1,83 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      # No JWT_SECRET is configured here: the tests generate their own at run time.
+      - name: Run tests
+        run: python -m pytest -q
+
+  docker:
+    name: docker build and smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate a throwaway JWT secret
+        run: echo "JWT_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')" >> "$GITHUB_ENV"
+      - name: Build the image and start the container
+        run: docker compose up --build --detach
+      - name: Wait for the health check
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Register, log in and call a protected route
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST http://localhost:8000/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"email": "ci@example.com", "password": "ci-smoke-test-passphrase"}'
+          TOKEN=$(curl -fsS -X POST http://localhost:8000/auth/login \
+            --data-urlencode 'username=ci@example.com' \
+            --data-urlencode 'password=ci-smoke-test-passphrase' \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
+          curl -fsS http://localhost:8000/categories -H "Authorization: Bearer $TOKEN" \
+            | python3 -c 'import json, sys; assert len(json.load(sys.stdin)) == 9'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/categories)" = "401"
+      # A new container on the same volume: the migration runs again on the
+      # existing database and the account must still be there.
+      - name: Data survives a new container
+        run: |
+          set -euo pipefail
+          docker compose down
+          docker compose up --detach
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then break; fi
+            sleep 2
+          done
+          curl -fsS -X POST http://localhost:8000/auth/login \
+            --data-urlencode 'username=ci@example.com' \
+            --data-urlencode 'password=ci-smoke-test-passphrase' > /dev/null
+      - name: Compose refuses to start without a secret
+        run: |
+          if env -u JWT_SECRET docker compose config > /dev/null 2>&1; then
+            echo "docker compose accepted a missing JWT_SECRET"
+            exit 1
+          fi
+      - name: Show logs
+        if: always()
+        run: docker compose logs
+      - name: Stop
+        if: always()
+        run: docker compose down --volumes
