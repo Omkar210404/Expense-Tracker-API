@@ -53,10 +53,36 @@ class ErrorResponse(BaseModel):
 
 def error_responses(*status_codes: int) -> dict:
     """The `responses=` entry that documents these error codes in OpenAPI."""
-    descriptions = {
-        401: "Missing, invalid or expired token",
-        404: "Not found, or it belongs to another user",
-        409: "Conflict with existing data",
-        422: "Validation error",
+    return {
+        code: {
+            "model": ErrorResponse,
+            "description": _ERROR_DOCS[code][0],
+            "content": {"application/json": {"example": {"error": _ERROR_DOCS[code][1]}}},
+        }
+        for code in status_codes
     }
-    return {code: {"model": ErrorResponse, "description": descriptions[code]} for code in status_codes}
+
+
+# status code -> (description, example error body) shown on the /docs page
+_ERROR_DOCS = {
+    401: (
+        "Missing, invalid or expired token",
+        {"code": "unauthorized", "message": "Not authenticated"},
+    ),
+    404: (
+        "Not found, or it belongs to another user",
+        {"code": "not_found", "message": "Expense not found"},
+    ),
+    409: (
+        "Conflict with existing data",
+        {"code": "conflict", "message": "You already have a category named 'Food'"},
+    ),
+    422: (
+        "Validation error",
+        {
+            "code": "validation_error",
+            "message": "Request validation failed",
+            "details": [{"field": "body.amount", "message": "Input should be greater than 0"}],
+        },
+    ),
+}
