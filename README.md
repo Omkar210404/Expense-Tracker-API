@@ -2,17 +2,17 @@
 
 [![tests](https://github.com/Omkar210404/Expense-Tracker-API/actions/workflows/tests.yml/badge.svg)](https://github.com/Omkar210404/Expense-Tracker-API/actions/workflows/tests.yml)
 
-A FastAPI backend for personal expense tracking with user accounts. Each user records expenses, sets a monthly budget per category, and reads back summaries of their own spending. Data is stored in SQLite by default.
+A personal expense tracker: a FastAPI backend with user accounts, and a small web app on top of it. Each user records expenses, sets a monthly budget per category, and sees where the money went. Data is stored in SQLite by default.
 
-![The auto-generated /docs page listing all endpoints](docs/docs-overview.png)
+![The web app overview: spending for the month, budgets, categories and the last six months](docs/app-overview.png)
 
-Everything shown in this README is real. The curl responses are copied from [examples/curl_examples.md](examples/curl_examples.md), which `scripts/capture_examples.py` produced by running `curl` against a running instance. The screenshots are of that same instance. The data in them is **synthetic**: the account is `demo@example.com` and the expenses are made up.
+Everything shown in this README is real. The curl responses are copied from [examples/curl_examples.md](examples/curl_examples.md), which `scripts/capture_examples.py` produced by running `curl` against a running instance. The screenshots are of an instance started by that same script. The data in them is **synthetic**: the account is `demo@example.com` and the expenses are made up.
 
 ## The problem
 
 Tracking spending in a spreadsheet works until you want to ask it questions: how much went on food this month, am I over the transport budget, is this month higher than last month. Answering those means writing formulas, and sharing the sheet means sharing every row.
 
-This project is the backend for a tracker that answers those questions directly. It keeps each user's data separate behind a login, validates what goes in, and exposes the answers as JSON so any client (a web page, a mobile app, a script) can use them. It is a backend only. There is no frontend.
+This project answers those questions directly. The backend keeps each user's data separate behind a login, validates what goes in, and exposes the answers as JSON so any client can use them. The web app is one such client: it is a single page that calls the same API a script or a mobile app would.
 
 ## What it does
 
@@ -24,6 +24,7 @@ This project is the backend for a tracker that answers those questions directly.
 - **Budgets**: one amount per category per month, and a report of spent vs budget.
 - **Summaries**: total per month, total per category, and month-over-month change.
 - **CSV export** of expenses, with the same filters as the list.
+- **Web app** at `/`: log in, see the month at a glance, add and edit expenses, set budgets, manage categories, download the CSV. Plain HTML, CSS and JavaScript with no framework and no build step.
 
 ## Architecture
 
@@ -31,7 +32,7 @@ Three layers. Each one calls only the layer below it.
 
 ```mermaid
 flowchart TD
-    client["Client: curl, a frontend, /docs"]
+    client["Client: the web app (app/static), curl, /docs"]
 
     subgraph app ["FastAPI app"]
         direction TB
@@ -77,6 +78,7 @@ app/
   routers/           auth, categories, expenses, budgets, summary, health
   services/          auth, categories, expenses, budgets, summaries, export
   repositories/      users, categories, expenses, budgets
+  static/            the web app: index.html, app.css, app.js
 alembic/             migration environment and versions/0001_initial_schema.py
 tests/               pytest suite
 scripts/             capture_examples.py
@@ -157,7 +159,15 @@ alembic upgrade head
 uvicorn app.main:app
 ```
 
-The API is at `http://127.0.0.1:8000`. Interactive documentation is at `/docs`, and the OpenAPI schema at `/openapi.json`.
+Open `http://127.0.0.1:8000` for the web app and create an account. The interactive API documentation is at `/docs`, and the OpenAPI schema at `/openapi.json`.
+
+To look around with sample data instead of an empty account:
+
+```bash
+python scripts/capture_examples.py --serve --port 8000
+```
+
+This starts the app on a temporary database filled with synthetic expenses, and prints the demo login (`demo@example.com` / `demo-passphrase-123`). It does not touch your own database or `.env`, and the data is discarded when you stop it.
 
 ### Docker
 
@@ -535,9 +545,29 @@ It uses a temporary database and a random secret, and does not touch your own da
 
 ## Screenshots
 
-Both are of the `/docs` page that FastAPI generates from the code, taken with headless Chrome from a running instance. The page uses Swagger UI's built-in dark theme. The second image is cropped from a full-page capture to the one expanded endpoint.
+All taken with headless Chrome from a running instance holding the synthetic demo data.
 
-The list of endpoints is at the top of this README. This is `GET /expenses` expanded, showing the filters and the documented responses:
+### The web app
+
+The overview is at the top of this README. Adding an expense:
+
+![The add expense dialog](docs/app-add-expense.png)
+
+All expenses, with search, filters and CSV download:
+
+![The expenses table with its filters](docs/app-expenses.png)
+
+Budgets for the month. Blue is within budget, amber is 80% or more used, red is over, and each bar also says so in words:
+
+![The budgets screen with a meter for each budgeted category](docs/app-budgets.png)
+
+### The API documentation
+
+The `/docs` page that FastAPI generates from the code, in Swagger UI's built-in dark theme. It lists every endpoint and lets you call each one:
+
+![The auto-generated /docs page listing all endpoints](docs/docs-overview.png)
+
+`GET /expenses` expanded, showing the filters and the documented responses. This image is cropped from a full-page capture to the one endpoint:
 
 ![GET /expenses expanded on the /docs page](docs/docs-expense-list.png)
 
@@ -547,7 +577,7 @@ The list of endpoints is at the top of this README. This is `GET /expenses` expa
 python -m pytest
 ```
 
-396 tests, all passing on the development machine (Windows 11, Python 3.11.9), in about a minute and a half. They use FastAPI's `TestClient` against a temporary SQLite file that is created for each test and deleted after it. The JWT secret used by the tests is generated at run time.
+408 tests, all passing on the development machine (Windows 11, Python 3.11.9), in about a minute and a half. They use FastAPI's `TestClient` against a temporary SQLite file that is created for each test and deleted after it. The JWT secret used by the tests is generated at run time.
 
 | Module | Tests | Covers |
 |--------|-------|--------|
@@ -566,6 +596,9 @@ python -m pytest
 | `test_migrations.py` | 3 | the Alembic migration creates the same schema as the models |
 | `test_config.py` | 6 | a missing or short `JWT_SECRET` stops startup and is not echoed |
 | `test_money.py`, `test_months.py` | 40 | amount conversion and month arithmetic |
+| `test_web_app.py` | 12 | the web app is served with its security header, loads nothing from other sites, has no inline script, and never builds HTML from text |
+
+The automated suite tests the API. **How the web app behaves in a browser is not part of it.** That was checked once by driving Chrome through the whole flow with a script that is not in this repository: wrong password, login, the overview figures, adding an expense (including a rejected amount and a note containing HTML), search, CSV download, edit, delete, setting a budget, adding and deleting a category, reload, phone width, logout, and a second account seeing none of the first one's data. Every step passed on 2026-10-10.
 
 CI runs the same suite on every push and pull request, on Ubuntu and Windows with Python 3.11 and 3.13, plus the Docker job described above.
 
@@ -583,8 +616,11 @@ CI runs the same suite on every push and pull request, on Ubuntu and Windows wit
 - **Errors** never include a stack trace or internal details.
 - **CSV export**: a cell that starts with `=`, `+`, `-` or `@` gets a leading apostrophe, so a spreadsheet does not run a note as a formula.
 - **Docker**: the container runs as a non-root user.
+- **Web app**: text that came from a user (notes, category names) is put on the page as text only, never parsed as HTML, so a note containing `<script>` or an `onerror` attribute is shown literally. The page is served with a Content-Security-Policy that allows scripts and styles from this server only, with no inline script. It loads nothing from any other site.
 
 ### Not covered
+
+- **The web app keeps the access token in the browser's `sessionStorage`.** It is forgotten when the tab closes, but any script that did manage to run on the page could read it. The measures above are there to stop that; an HttpOnly cookie would remove the exposure and would then need CSRF protection.
 
 - **No rate limiting or account lockout.** Login can be brute-forced. Put a rate limiter or a reverse proxy in front before exposing this to the internet.
 - **No HTTPS.** The app speaks plain HTTP. Tokens and passwords must travel over TLS, which has to come from a reverse proxy.
@@ -601,7 +637,7 @@ CI runs the same suite on every push and pull request, on Ubuntu and Windows wit
 
 ## Limitations
 
-- **Backend only.** There is no frontend.
+- **The web app is deliberately small.** One page of plain JavaScript, with no framework, no build step and no browser tests in the repository. Renaming a category and confirming a delete use the browser's own prompt boxes. The "Last 6 months" chart always ends at the current month, whichever month is selected. Numbers and dates follow the browser's language setting.
 - **One currency.** Amounts are plain numbers with two decimal places and no currency field.
 - **A budget covers one month.** It does not repeat. Each month needs its own budget.
 - **SQLite is the only database tested.** The queries avoid SQLite-only functions and `DATABASE_URL` accepts any SQLAlchemy URL, but nothing else has been run, and another database would also need its driver installed.
@@ -626,7 +662,7 @@ CI runs the same suite on every push and pull request, on Ubuntu and Windows wit
 - Multiple currencies.
 - PostgreSQL in CI alongside SQLite.
 - Account deletion and a full data export.
-- A small frontend that uses this API.
+- Browser tests for the web app in CI, and an HttpOnly cookie in place of `sessionStorage`.
 
 ## License
 

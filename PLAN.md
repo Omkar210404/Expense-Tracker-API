@@ -321,7 +321,13 @@ Small points decided during the build, all inside the approved plan:
 - **The second screenshot is cropped** from a full-page capture to the one expanded endpoint. Stated in the README.
 - **passlib was not installed or tried.** Decision 1 chose `bcrypt` directly, so the reported incompatibility was never checked here.
 
-Results of the final local run: 396 tests passed, both in the working environment and in a fresh virtual environment built from `requirements-dev.txt`.
+Added after the first review, at the owner's request:
+
+- **A web app at `/`** (`app/static/`): login, a monthly overview, adding and editing expenses, budgets, categories and CSV download. Section 2 listed "no frontend" as out of scope; that changed. It is plain HTML, CSS and JavaScript with no framework, no build step and no files from other sites, served by FastAPI with a Content-Security-Policy.
+- **`tests/test_web_app.py`** covers how the page is served. Its behaviour in a browser was checked by driving Chrome with a one-off Playwright script kept outside the repository, as section 8 allowed for screenshots. 26 checks, all passed on 2026-10-10.
+- **`scripts/capture_examples.py --serve --port N`** keeps the demo data running for the web app, and in that mode puts back the expense the last example deletes. The recorded transcript is unchanged.
+
+Results of the final local run: 408 tests passed in the working environment. The fresh-environment check (a new virtual environment built from `requirements-dev.txt`, then the full suite) was done before the web app was added, with 396 of 396 passing. The web app added no dependencies.
 
 ## 15. Deviations from brain.md
 
