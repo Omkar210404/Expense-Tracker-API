@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from app.models import Category, Expense
@@ -106,6 +106,62 @@ def list_page(
         .offset(offset)
     )
     return list(db.scalars(query))
+
+
+@dataclass(frozen=True)
+class CategoryTotal:
+    category_id: int
+    category_name: str
+    total_minor: int
+    count: int
+
+
+@dataclass(frozen=True)
+class MonthTotal:
+    year: int
+    month: int
+    total_minor: int
+    count: int
+
+
+def totals_by_category(
+    db: Session, user_id: int, *, date_from: date | None = None, date_to: date | None = None
+) -> list[CategoryTotal]:
+    """Total and count per category that has at least one expense in the range."""
+    filters = ExpenseFilters(date_from=date_from, date_to=date_to)
+    query = (
+        select(Category.id, Category.name, func.sum(Expense.amount_minor), func.count(Expense.id))
+        .select_from(Expense)
+        .join(Category, Expense.category_id == Category.id)
+        .where(*_conditions(user_id, filters))
+        .group_by(Category.id, Category.name)
+    )
+    return [CategoryTotal(*row) for row in db.execute(query)]
+
+
+def totals_by_month(
+    db: Session, user_id: int, *, date_from: date | None = None, date_to: date | None = None
+) -> list[MonthTotal]:
+    """Total and count per calendar month that has at least one expense in the range."""
+    filters = ExpenseFilters(date_from=date_from, date_to=date_to)
+    # extract() is translated for each database, unlike SQLite's strftime().
+    year = extract("year", Expense.date)
+    month = extract("month", Expense.date)
+    query = (
+        select(year, month, func.sum(Expense.amount_minor), func.count(Expense.id))
+        .where(*_conditions(user_id, filters))
+        .group_by(year, month)
+        .order_by(year, month)
+    )
+    return [MonthTotal(int(row[0]), int(row[1]), int(row[2]), int(row[3])) for row in db.execute(query)]
+
+
+def date_bounds(db: Session, user_id: int) -> tuple[date, date] | None:
+    """The dates of the user's earliest and latest expense, or None when there are none."""
+    row = db.execute(
+        select(func.min(Expense.date), func.max(Expense.date)).where(Expense.user_id == user_id)
+    ).one()
+    return (row[0], row[1]) if row[0] is not None else None
 
 
 def list_all(db: Session, user_id: int, filters: ExpenseFilters) -> list[Expense]:

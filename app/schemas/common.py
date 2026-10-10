@@ -1,11 +1,11 @@
 """Types and models shared by the other schema modules."""
 
-import re
-from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, Field, PlainSerializer, StringConstraints
+from pydantic import AfterValidator, BaseModel, Field, PlainSerializer
+
+from app.months import parse_month
 
 MAX_AMOUNT = Decimal("9999999.99")
 
@@ -25,26 +25,6 @@ AmountOut = Annotated[
     Field(examples=["249.50"]),
 ]
 
-_MONTH_PATTERN = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
-MIN_YEAR = 2000
-MAX_YEAR = 2100
-
-
-def parse_month(value: str) -> date:
-    """`"2026-06"` -> `date(2026, 6, 1)`."""
-    match = _MONTH_PATTERN.match(value)
-    if not match:
-        raise ValueError("Month must look like YYYY-MM, for example 2026-06")
-    year = int(match.group(1))
-    if not MIN_YEAR <= year <= MAX_YEAR:
-        raise ValueError(f"Year must be between {MIN_YEAR} and {MAX_YEAR}")
-    return date(year, int(match.group(2)), 1)
-
-
-def format_month(month: date) -> str:
-    return f"{month.year:04d}-{month.month:02d}"
-
-
 def _check_month(value: str) -> str:
     parse_month(value)
     return value
@@ -52,8 +32,6 @@ def _check_month(value: str) -> str:
 
 # A calendar month written as YYYY-MM.
 MonthStr = Annotated[str, AfterValidator(_check_month), Field(examples=["2026-06"])]
-
-TrimmedStr = Annotated[str, StringConstraints(strip_whitespace=True)]
 
 
 class ErrorDetail(BaseModel):
