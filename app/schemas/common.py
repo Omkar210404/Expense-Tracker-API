@@ -9,6 +9,11 @@ from pydantic import AfterValidator, BaseModel, Field, PlainSerializer, StringCo
 
 MAX_AMOUNT = Decimal("9999999.99")
 
+# Ids are bounded, so an absurdly large number in a URL or a body is a 422
+# and never reaches the database driver.
+MAX_ID = 2**31 - 1
+ResourceId = Annotated[int, Field(ge=1, le=MAX_ID)]
+
 # Amounts come in as a number or a string with at most two decimal places.
 AmountIn = Annotated[Decimal, Field(gt=0, le=MAX_AMOUNT, decimal_places=2, examples=["249.50"])]
 

@@ -6,6 +6,7 @@ from app.errors import AuthenticationError, ConflictError
 from app.models import User
 from app.repositories import users
 from app.schemas.auth import Token, UserCreate
+from app.services import categories as categories_service
 from app.security import create_access_token, hash_password, verify_against_dummy, verify_password
 
 
@@ -19,6 +20,8 @@ def register(db: Session, settings: Settings, data: UserCreate) -> User:
         raise ConflictError("An account with this email already exists")
 
     user = users.add(db, email=email, hashed_password=hash_password(data.password, settings.bcrypt_rounds))
+    # Same transaction as the user, so an account never exists without its categories.
+    categories_service.create_defaults(db, user.id)
     try:
         db.commit()
     except IntegrityError:

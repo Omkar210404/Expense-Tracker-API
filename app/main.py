@@ -10,7 +10,7 @@ from app import __version__
 from app.config import Settings, get_settings
 from app.database import make_engine, make_session_factory
 from app.errors import register_error_handlers
-from app.routers import auth, health
+from app.routers import auth, categories, health
 
 DESCRIPTION = """
 Personal expense tracking with user accounts.
@@ -50,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(categories.router)
     return app
 
 
